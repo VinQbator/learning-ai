@@ -18,7 +18,7 @@ class Encoder():
         self.n_seats = n_seats
         self.ranking_encoding = ranking_encoding
         self._init_transformers()
-        self.n_dim = 375 + 2 * n_seats + (7463 if ranking_encoding == 'one-hot' else 1) + (5 + n_seats) * n_seats
+        self.n_dim = 375 + 2 * n_seats + (7463 if ranking_encoding == 'one-hot' else 1) + (6 + n_seats) * n_seats
 
     def encode(self, player_states, community_infos, community_cards, our_seat):
         player_infos, player_hands = zip(*player_states)
@@ -34,7 +34,7 @@ class Encoder():
         if self.ranking_encoding == 'one-hot':
             hand = self._handrank_transformer.fit_transform([hand])
         elif self.ranking_encoding == 'norm':
-            hand /= 7642.0
+            hand = [[hand[0] / 7642.0]]
         else:
             raise Exception('Unknown ranking encoding!')
 
@@ -52,7 +52,7 @@ class Encoder():
         player_cards_t = self._player_cards_transformer.fit_transform(cards.reshape(1, -1))
 
         start = player_infos[:-our_seat] # Shift seats
-        end = player_infos[our_seat:]
+        end = player_infos[-our_seat:]
         player_infos = np.concatenate((end, start), axis=0)
         players_info_t = np.array([])
         for info in player_infos:
@@ -73,7 +73,7 @@ class Encoder():
         position_columns = [community_table.BUTTON_POS]
         drop_positions = [community_table.TO_ACT_POS]
         seat_columns = [player_table.SEAT_ID]
-        hand_columns = [player_table.HAND, player_table.HAND_RANK]
+        hand_columns = [player_table.HAND_RANK]
         
         deck = Deck.GetFullDeck()
         extended_deck = [-1, *deck]

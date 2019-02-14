@@ -1,11 +1,34 @@
+import os
+import fnmatch
 import numpy as np
 import matplotlib.pyplot as plt
 
 from keras.callbacks import History
 
+using_jupyter = False
+
+def use_jupyter():
+    global using_jupyter
+    using_jupyter = True
+
+def print_stats(history):
+    assert isinstance(history, History)
+    winnings = np.array(history.history['money_won'])
+    hands = len(winnings[winnings != 0])
+    total_winnings = winnings.sum()
+    print('Total $ won:', total_winnings)
+    print('Winrate BB/100:', total_winnings / hands * 4)
+    print('Total hands:', hands)
+
 def visualize_history(history):
     assert isinstance(history, History)
-    avg_over = len(history.history['episode_reward']) // 10
+    episode_reward = np.array(history.history['episode_reward'])
+    episode_reward = episode_reward[episode_reward != 0]
+    #print(len(episode_reward), episode_reward)
+    winnings = np.array(history.history['money_won'])
+    winnings = winnings[winnings != 0]
+    hands = len(episode_reward)
+    avg_over = hands // 10
     def SMA(arr):
         N = len(arr)
         running_avg = np.empty(N)
@@ -13,18 +36,27 @@ def visualize_history(history):
             running_avg[t] = arr[max(0, t-avg_over):(t+1)].mean()
         return running_avg
     
-    episode_reward = np.array(history.history['episode_reward'])
-    winnings = np.array(history.history['money_won'])
-    winnings = winnings[np.nonzero(winnings)]
-    plt.plot(SMA(episode_reward)[avg_over//2:], label=('reward'))
-    plt.title("Episode Rewards")
-    plt.legend()
-    plt.show()
-    plt.plot(SMA(winnings)[avg_over//2:] *4, label=('bb/100 SMA %s' % avg_over))
-    plt.title("Winrate")
-    plt.legend()
-    plt.show()
-    plt.plot(np.cumsum(winnings - (10 + 25) / 2) / 25, label=('BB Won'))
-    plt.title("Winnings")
-    plt.legend()
-    plt.show()
+    fig, axs = plt.subplots(1, 3, figsize=(20,7))
+    axs[0].plot(SMA(episode_reward)[avg_over//2:], label=('reward'))
+    axs[0].set_title("Episode Rewards")
+    axs[0].legend()
+    axs[1].plot(SMA(winnings)[avg_over//2:] * 4, label=('bb/100 SMA %s' % avg_over))
+    axs[1].set_title("Winrate")
+    axs[1].legend()
+    axs[2].plot(np.cumsum(winnings) / 25, label=('BB Won'))
+    axs[2].set_title("Winnings")
+    axs[2].legend()
+    if not using_jupyter:
+        fig.show()
+    print_stats(history)
+
+def get_latest_iteration_name(pattern):
+    files = os.listdir('./weights/')
+    found = []  
+    for entry in files:  
+        if fnmatch.fnmatch(entry, pattern):
+            found.append(entry)
+    return sorted(found)[-1], len(found)
+
+if __name__ == '__main__':
+    print(get_latest_iteration_name('loop-*-simple-396'))
