@@ -2,10 +2,34 @@ import os
 import fnmatch
 import numpy as np
 import matplotlib.pyplot as plt
+import gc
 
+import tensorflow as tf
+ 
+import keras.backend as K
 from keras.callbacks import History
 
 using_jupyter = False
+
+def set_on_demand_memory_allocation(usage_cap=1.0):
+    config = tf.ConfigProto()
+    config.gpu_options.allow_growth = True
+    config.gpu_options.per_process_gpu_memory_fraction = usage_cap
+    K.tensorflow_backend.set_session(tf.Session(config=config))
+
+def release_memory(agents):
+    sess = K.tensorflow_backend.get_session()
+    K.tensorflow_backend.clear_session()
+    sess.close()
+    try:
+        for agent in agents:
+            if not agent is None:
+                del agent
+    except:
+        print('something something')
+        pass
+    print('%s objects released from memory' % gc.collect())
+    set_on_demand_memory_allocation()
 
 def use_jupyter():
     global using_jupyter
@@ -57,6 +81,3 @@ def get_latest_iteration_name(pattern):
         if fnmatch.fnmatch(entry, pattern):
             found.append(entry)
     return sorted(found)[-1], len(found)
-
-if __name__ == '__main__':
-    print(get_latest_iteration_name('loop-*-simple-396'))
