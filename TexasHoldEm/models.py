@@ -14,7 +14,7 @@ def test_model(window_length, n_observations, n_actions):
     return model
 
 def simple_model(window_length, n_observations, n_actions):
-    model = Sequential(name='simple-%s' % n_observations)
+    model = Sequential(name='simple-%s' % (n_observations *window_length))
     model.add(Flatten(input_shape=(window_length, n_observations)))
     model.add(Dense(4096, activation='relu'))
     model.add(Dropout(0.4))
@@ -26,7 +26,7 @@ def simple_model(window_length, n_observations, n_actions):
     return model
 
 def complex_model(window_length, n_observations, n_actions):
-    model = Sequential(name='complex-%s' % n_observations)
+    model = Sequential(name='complex-%s' % (n_observations *window_length))
     model.add(Flatten(input_shape=(window_length, n_observations)))
     model.add(Dense(4096, activation='relu'))
     model.add(Dropout(0.4))

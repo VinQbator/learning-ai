@@ -1,4 +1,5 @@
 import warnings
+import gc
 
 import keras.backend as K
 from keras.optimizers import Adam
@@ -8,7 +9,7 @@ from rl.policy import BoltzmannQPolicy
 from rl.memory import SequentialMemory
 
 from helpers.poker_history import PokerHistory
-from util import visualize_history, print_stats, get_latest_iteration_name
+from util import visualize_history, print_stats, get_latest_iteration_name, release_memory
 from players.ai_player import AIPlayer
 
 # Suppress FutureWarnings that trash the output
@@ -29,13 +30,15 @@ def build_dqn_agent(model, n_actions, window_length, target_model_update=1e-3, o
     agent.compile(optimizer, metrics=['mae'])
     return agent
 
-def fit_agent(agent, env, n_steps, debug, history=None):
+def fit_agent(agent, env, n_steps, debug, history=None, start_from_scratch=False, verbose=1, callbacks=None):
+    if not start_from_scratch:
+        load_agent_weights(agent)
     history = PokerHistory() if history is None else history
-    history = agent.fit(env, nb_steps=n_steps, visualize=debug, log_interval=n_steps//5, verbose=1, history=history)
+    history = agent.fit(env, nb_steps=n_steps, visualize=debug, log_interval=n_steps//5, verbose=verbose, history=history, callbacks=callbacks)
     return agent, history
 
 # A method to iteratively keep playing against previous versions of ourselves
-def train_loop(agent, model, env, steps_in_iteration, n_iterations, window_length, history=None, debug=False):
+def train_loop(agent, model, env, steps_in_iteration, n_iterations, window_length, history=None, debug=False, verbose=0):
     env.swap_other_players([AIPlayer(agent) for i in range(len(env.other_players))])
     history = PokerHistory() if history is None else history
     opponent_agent = None
@@ -43,33 +46,37 @@ def train_loop(agent, model, env, steps_in_iteration, n_iterations, window_lengt
     for i in range(n_iterations):
         print('ITERATION %s' % str(i))
         # Free up resources first
-        K.clear_session() 
-        if opponent_agent is not None:
-            del opponent_agent
-        del agent
+        release_memory([opponent_agent, agent])
         # Create a copy of the agent to play against us (and to free up the resources recreate our training agent as well)
         agent = build_dqn_agent(model(window_length, env.n_observation_dimensions, env.n_actions), env.n_actions, window_length, debug)
-        load_agent_weights(agent)
+        #load_agent_weights(agent)
         opponent_agent = build_dqn_agent(model(window_length, env.n_observation_dimensions, env.n_actions), env.n_actions, window_length, debug)
         load_agent_weights(opponent_agent)
         env.swap_opponent_agent(opponent_agent)
-        history = agent.fit(env, nb_steps=steps_in_iteration, visualize=debug, log_interval=steps_in_iteration//5, verbose=0, history=history)
+        history = agent.fit(env, nb_steps=steps_in_iteration, visualize=debug, log_interval=steps_in_iteration//5, verbose=verbose, history=history)
         print_stats(history)
         save_agent_weights(agent)
     
-    K.clear_session() 
-    if opponent_agent is not None:
-        del opponent_agent
-    del agent
+    release_memory([opponent_agent, agent])
+    # Create a copy of the agent to play against us (and to free up the resources recreate our training agent as well)
     agent = build_dqn_agent(model(window_length, env.n_observation_dimensions, env.n_actions), env.n_actions, window_length, debug)
-    load_agent_weights(agent)
+    #load_agent_weights(agent)
+    opponent_agent = build_dqn_agent(model(window_length, env.n_observation_dimensions, env.n_actions), env.n_actions, window_length, debug)
+    load_agent_weights(opponent_agent)
+    env.swap_opponent_agent(opponent_agent)
     return agent, history
 
 def agent_weight_name(agent):
     return 'loop-%s' % agent.model.name
 
 def load_agent_weights(agent):
-    agent.load_weights('weights/' + agent_weight_name(agent))
+    try:
+        agent.load_weights('weights/' + agent_weight_name(agent))
+    except:
+        print('Could not load previous weights')
 
 def save_agent_weights(agent, overwrite=True):
+
+    # TODO: save safely (buffer to temp file and on successful save overwrite original)
+
     agent.save_weights('weights/' + agent_weight_name(agent), overwrite=overwrite)
