@@ -8,6 +8,7 @@ from encoders import Encoder
 from decoders import Decoder
 
 import time
+import datetime
 
 # Max betsize in simulation environment (shouldn't really matter with discrete relative to pot sizing)
 MAX_BET = 100000
@@ -78,16 +79,18 @@ class TrainingEnv():
         if done:
             self.reset_returns = (player_states, community_infos, community_cards, reward, done, info)
         encoded_state = self._encoder.encode(player_states, community_infos, community_cards, 0)
-        self.outer_start_time = time.time()
+        self.outer_start_time = self.time_now
         return encoded_state
+
+    @property
+    def time_now(self):
+        #return time.time()
+        return datetime.datetime.now()
     
     def step(self, action):
-        start = time.time()
-        outer_duration = time.time() - self.outer_start_time
+        start = self.time_now
+        outer_duration = self.time_now - self.outer_start_time
         our_id = 0
-        if self.done_on_reset:
-            player_states, community_infos, community_cards, reward, done, info = self.reset_returns
-
         if self.done_on_reset:
             if self._debug:
                 print('Opponent folded, starting new round...')
@@ -100,7 +103,9 @@ class TrainingEnv():
             if self._debug:
                 print('Action from Training Agent', actions)
                 print('Round:', self.env._street)
+            inner_start = self.time_now
             (player_states, (community_infos, community_cards)), reward, done, info = self.env.step(actions)
+            info['inner_duration'] = (self.time_now - inner_start).total_seconds()
             if self._debug:
                 self.render()
                 print("Letting others play after step...")
@@ -115,10 +120,15 @@ class TrainingEnv():
             'holdem reward', reward,
             'done', done)
         reward = reward[our_id]
+        encode_start = self.time_now
         state = self._encoder.encode(player_states, community_infos, community_cards, 0)
-        self.outer_start_time = time.time()
-        # info['step_duration'] = time.time() - start
-        # info['outer_duration'] = outer_duration
+        if 'encode_duration' in info:
+            info['encode_duration'] += (self.time_now - encode_start).total_seconds()
+        else:
+            info['encode_duration'] = (self.time_now - encode_start).total_seconds()
+        self.outer_start_time = self.time_now
+        info['step_duration'] = (self.time_now - start).total_seconds()
+        info['outer_duration'] = outer_duration.total_seconds()
         return (state, reward, done, info)
     
     def render(self, mode='human', close=False):
@@ -129,9 +139,18 @@ class TrainingEnv():
             print("... others playing now ...")
         # Other players act before training player with seat 0
         to_act_pos = community_infos[community_table.TO_ACT_POS]
-        while to_act_pos != self.our_seat and self.env._street < 5 and not done: 
-            encoded_state = self._encoder.encode(player_states, community_infos, community_cards, to_act_pos)
+        while to_act_pos != self.our_seat and self.env._street < 5 and not done:
+            encoded_state = None
             player = self.other_players[to_act_pos - 1]
+            encode_start = self.time_now
+            if player.encoded_input:
+                encoded_state = self._encoder.encode(player_states, community_infos, community_cards, to_act_pos)
+            if info is None:
+                pass
+            elif 'encode_duration' in info:
+                info['encode_duration'] += (self.time_now - encode_start).total_seconds()
+            else:
+                info['encode_duration'] = (self.time_now - encode_start).total_seconds()
             move = player.declare_action(player_states, community_infos, community_cards, encoded_state)
             if player.encoded_output:
                 move = self._decoder.decode(move, self.n_seats, self.minimum_raise, 
@@ -141,7 +160,14 @@ class TrainingEnv():
             if self._debug:
                 print('Actions from Other:', actions, 'Pos:', to_act_pos)
                 print('Street:', self.env._street)
+            inner_start = self.time_now
             states, reward, done, info = self.env.step(actions.astype(dtype=int))
+            if info is None:
+                pass
+            elif 'inner_duration' in info:
+                info['inner_duration'] += (self.time_now - inner_start).total_seconds()
+            else:
+                info['inner_duration'] = (self.time_now - inner_start).total_seconds()
             player_states, (community_infos, community_cards) = states
 
             if self._debug:

@@ -8,5 +8,9 @@ class RandomPlayer(PlayerBase):
     def encoded_output(self):
         return True
 
+    @property
+    def encoded_input(self):
+        return False
+
     def declare_action(self, player_states, community_infos, community_cards, encoded_state):
         return np.random.random_integers(0, 25)

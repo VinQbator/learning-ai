@@ -12,6 +12,10 @@ class AIPlayer(PlayerBase):
     def encoded_output(self):
         return True
 
+    @property
+    def encoded_input(self):
+        return True
+
     def declare_action(self, player_states, community_infos, community_cards, encoded_state):
         action = self.predict(encoded_state)
         return action

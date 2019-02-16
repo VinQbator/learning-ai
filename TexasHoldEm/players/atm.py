@@ -6,6 +6,10 @@ class ATM(PlayerBase):
     def encoded_output(self):
         return False
 
+    @property
+    def encoded_input(self):
+        return False
+
     def declare_action(self, player_states, community_infos, community_cards, encoded_state):
         to_call = community_infos[community_table.TO_CALL]
         if to_call > 0:
