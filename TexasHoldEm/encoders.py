@@ -60,11 +60,11 @@ class Encoder():
             info[Encoder.pot_normalized_player] = info[Encoder.pot_normalized_player] / full_stack
             players_info_t = np.append(players_info_t, self._player_info_transformer.fit_transform([info]))
 
-        return np.concatenate((community_infos_t.flatten('K'), 
-            community_cards_t.flatten('K'), 
-            player_cards_t.flatten('K'), 
-            players_info_t.flatten('K'),
-            hand_t.flatten('K')), 
+        return np.concatenate((community_infos_t.flatten(),
+            community_cards_t.flatten(),
+            player_cards_t.flatten(),
+            players_info_t.flatten(),
+            hand_t.flatten()),
             axis=0)
 
     def _init_transformers(self):
