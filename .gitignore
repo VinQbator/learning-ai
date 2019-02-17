@@ -1,6 +1,9 @@
 # Keras weights
 weights/
+# Datasets
+*.csv
 
+.vscode/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
