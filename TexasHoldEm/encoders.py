@@ -18,20 +18,23 @@ class Encoder():
         self.n_seats = n_seats
         self.ranking_encoding = ranking_encoding
         self._init_transformers()
-        self.n_dim = 375 + 2 * n_seats + (7463 if ranking_encoding == 'one-hot' else 1) + (6 + n_seats) * n_seats
+        self.n_dim = 375 + 2 * n_seats + (7463 if ranking_encoding == 'one-hot' else 1) + 7 * n_seats
+        self._deck = np.array(Deck.GetFullDeck(), dtype=np.int64)
+        self._deck_alt = np.concatenate((np.array([-1], dtype=np.int64), self._deck))
 
     def encode(self, player_states, community_infos, community_cards, our_seat):
         player_infos, player_hands = zip(*player_states)
         player_infos = np.array(player_infos, dtype=np.float32)
-        player_hands = np.array(player_hands, dtype=np.float32)
+        player_hands = np.array(player_hands, dtype=np.int64)
         community_infos = np.array(community_infos, dtype=np.float32)
-        community_cards = np.array(community_cards, dtype=np.float32)
+        community_cards = np.array(community_cards, dtype=np.int64)
 
         player_index = int(community_infos[community_table.TO_ACT_POS])
         n_players = len(player_infos)
 
         hand = [player_infos[player_index][player_table.HAND_RANK]]
         if self.ranking_encoding == 'one-hot':
+            raise NotImplementedError()
             hand = self._handrank_transformer.fit_transform([hand])
         elif self.ranking_encoding == 'norm':
             hand = [[hand[0] / 7642.0]]
@@ -45,20 +48,28 @@ class Encoder():
         community_infos[Encoder.pot_normalized_community] = community_infos[Encoder.pot_normalized_community] / full_stack
         community_infos[community_table.BUTTON_POS] = (community_infos[community_table.BUTTON_POS] + our_seat) % n_players # Shift seats
 
-        community_infos_t = self._community_info_transformer.fit_transform(community_infos.reshape(1, -1))
-        community_cards_t = self._community_cards_transformer.fit_transform(community_cards.reshape(1, -1))
+        community_infos_t = np.zeros(6 + 2 * n_players)
+        community_infos_t[:5] = community_infos[community_table.SMALL_BLIND:community_table.TO_CALL]
+        community_infos_t[int(6+community_infos[community_table.BUTTON_POS])] = 1
+
+        community_cards_t = np.zeros(5*53)
+        community_cards_t[[int(i * 53 + np.where(self._deck_alt == community_cards[i])[0]) for i in range(5)]] = 1
 
         cards = player_hands[player_index]
-        player_cards_t = self._player_cards_transformer.fit_transform(cards.reshape(1, -1))
+        player_cards_t = np.zeros(52*2)
+        player_cards_t[[int(i * 52 + np.where(self._deck == int(cards[i]))[0]) for i in range(2)]]
 
         start = player_infos[:-our_seat] # Shift seats
         end = player_infos[-our_seat:]
         player_infos = np.concatenate((end, start), axis=0)
-        players_info_t = np.array([])
-        for info in player_infos:
-            info[player_table.SEAT_ID] = (info[player_table.SEAT_ID] + our_seat) % n_players # Shift seats
-            info[Encoder.pot_normalized_player] = info[Encoder.pot_normalized_player] / full_stack
-            players_info_t = np.append(players_info_t, self._player_info_transformer.fit_transform([info]))
+
+        players_info_t = np.zeros((n_players, 8 + n_players))
+        player_infos[:,player_table.SEAT_ID] += our_seat 
+        player_infos[:,player_table.SEAT_ID] %= n_players
+        player_infos[:,Encoder.pot_normalized_player] /= full_stack
+
+        players_info_t = np.zeros((n_players, 7))
+        players_info_t[:] = player_infos[:,2:]
 
         return np.concatenate((community_infos_t.flatten('K'), 
             community_cards_t.flatten('K'), 
@@ -68,6 +79,8 @@ class Encoder():
             axis=0)
 
     def _init_transformers(self):
+        # WAY slower than doing manually with numpy
+
         card_columns = [0, 1]
         community_cards_columns = [0, 1, 2, 3, 4]
         position_columns = [community_table.BUTTON_POS]
