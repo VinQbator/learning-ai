@@ -69,7 +69,7 @@ class TrainingEnv():
         players, _ = zip(*player_states)
         for player in players:
             self.start_stacks.append(player[player_table.STACK])
-        self.our_seat = players[0][player_table.SEAT_ID]
+        #self.our_seat = players[0][player_table.SEAT_ID]
         if self._debug:
             print('Starting new round:', self.env._street)
             print("Letting others play after reset...")
@@ -139,7 +139,8 @@ class TrainingEnv():
             print("... others playing now ...")
         # Other players act before training player with seat 0
         to_act_pos = community_infos[community_table.TO_ACT_POS]
-        while to_act_pos != self.our_seat and self.env._street < 5 and not done:
+
+        while to_act_pos != 0 and self.env._street < 5 and not done:
             encoded_state = None
             player = self.other_players[to_act_pos - 1]
             encode_start = self.time_now

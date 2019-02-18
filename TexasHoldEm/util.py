@@ -20,22 +20,10 @@ def set_on_demand_memory_allocation(usage_cap=1.0):
     K.set_session(sess)
 
 def release_memory(agents):
-    #sess = K.tensorflow_backend.get_session() # works on cpu without this
-    try:
-        K.tensorflow_backend.clear_session()
-    except:
-        print('clear session')
-    try:
-        for agent in agents:
-            if not agent is None:
-                del agent
-    except:
-        print('something something')
-    try:
-        pass
-        #sess.close() # Works on cpu without this
-    except:
-        print('sess close')
+    K.tensorflow_backend.clear_session()
+    for agent in agents:
+        if not agent is None:
+            del agent
     print('%s objects released from memory' % gc.collect())
     set_on_demand_memory_allocation()
 

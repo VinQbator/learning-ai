@@ -19,15 +19,25 @@ def main():
     for p in env._seats:
         p.reset_stack()
     state = env.reset()
+    #print(state)
     (player_states, (community_infos, community_cards)) = state
+    print('player states', player_states)
+    print('community info', community_infos)
     encoder = Encoder(N_PLAYERS, ranking_encoding='norm')
     start_time = time.time()
+    #community_info, players_info, community_cards, player_cards = encoder.encode(player_states, community_infos, community_cards, 0, concat=False)
     encoded_state = encoder.encode(player_states, community_infos, community_cards, 0)
     time_taken = time.time() - start_time
     print(time_taken)
     print(encoded_state.shape)
     tr_env = TrainingEnv.build_environment('asd', N_PLAYERS)
     print(tr_env.n_observation_dimensions)
+    #print('Community Info:', community_info)
+    #print('Players Info:', players_info)
+    #print('Community Cards:', community_cards)
+    #print('Player Cards:', player_cards)
+    #print('Hand Rank:', hand_rank)
+    #print(encoder.encode_slow(player_states, community_infos, community_cards, 0))
 
 if __name__ == '__main__':
     main()
