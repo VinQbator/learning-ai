@@ -16,15 +16,27 @@ class Encoder():
         player_table.STACK, 
         player_table.LAST_SIDEPOT]
 
-    def __init__(self, n_seats, ranking_encoding='norm'):
+    def __init__(self, n_seats, ranking_encoding='norm', concat=True, drop_cards=False, split_cards=False):
         self.n_seats = n_seats
         self.ranking_encoding = ranking_encoding
-        self.n_dim = 265 + 104 + 6 + n_seats + 6 * n_seats + (7463 if ranking_encoding == 'one-hot' else 1 if ranking_encoding == 'norm' else 0)
         self._deck = np.array(Deck.GetFullDeck(), dtype=np.int64)
         self._deck_alt = np.concatenate((np.array([-1], dtype=np.int64), self._deck))
         self._evaluator = Evaluator()
+        self.concat = concat
 
-    def encode(self, player_states, community_infos, community_cards, our_seat, concat=True):
+    @property
+    def n_card_dim(self):
+        return (265 + 104) + (7463 if self.ranking_encoding == 'one-hot' else 1 if self.ranking_encoding == 'norm' else 0)
+
+    @property
+    def n_other_dim(self):
+        return 6 + self.n_seats + 6 * self.n_seats
+
+    @property
+    def n_dim(self):
+        return self.n_card_dim + self.n_other_dim
+
+    def encode(self, player_states, community_infos, community_cards, our_seat):
         player_infos, player_hands = zip(*player_states)
         player_infos = np.array(player_infos, dtype=np.float32)
         community_infos = np.array(community_infos, dtype=np.float32)
@@ -39,16 +51,16 @@ class Encoder():
         community_infos_t[:6] = community_infos[community_table.SMALL_BLIND:community_table.TO_ACT_POS]
         community_infos_t[int(6+community_infos[community_table.BUTTON_POS])] = 1
 
-        community_cards_t = np.zeros(5*53)
-        community_cards_t[[int(i * 53 + np.where(self._deck_alt == community_cards[i])[0]) for i in range(5)]] = 1
-
         cards = player_hands[0]
+        community_cards_t = np.zeros(5*53)
         player_cards_t = np.zeros(52*2)
+        
+        community_cards_t[[int(i * 53 + np.where(self._deck_alt == community_cards[i])[0]) for i in range(5)]] = 1
         player_cards_t[[int(i * 52 + np.where(self._deck == int(cards[i]))[0]) for i in range(2)]] = 1
 
         player_infos[:,Encoder.pot_normalized_player] /= full_stack
         players_info_t = np.zeros((n_players, 6))
-        players_info_t[:] = player_infos[:,:]
+        players_info_t[:] = player_infos[:,:player_table.ID]
 
         if self.ranking_encoding is None:
             hand = []
@@ -72,7 +84,7 @@ class Encoder():
 
         hand_t = np.array(hand)
 
-        if concat:
+        if self.concat:
             return np.concatenate(
                 (community_infos_t.flatten(), players_info_t.flatten(), community_cards_t.flatten(), player_cards_t.flatten(), hand_t.flatten()), 
                 axis=0)

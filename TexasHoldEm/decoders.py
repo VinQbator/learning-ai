@@ -27,12 +27,14 @@ class Decoder():
                 # Relative raise size
                 amount = self.betsizes[amount_index - 1] * pot_size
                 # Move size to legal range
-        if move == action_table.RAISE and minimum_raise >= maximum_raise:
+            amount = max(min(amount, maximum_raise), min(minimum_raise, maximum_raise))
+        
+        if move == action_table.RAISE and (minimum_raise >= maximum_raise or amount >= maximum_raise):
             if amount_to_call > 0:
                 move = action_table.CALL
             else:
                 move = action_table.CHECK
-        amount = max(min(amount, maximum_raise), min(minimum_raise, maximum_raise))
+        
         if debug:
             print('\n')
             print('maxraise', maximum_raise,'minraise', minimum_raise)

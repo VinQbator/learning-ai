@@ -11,24 +11,24 @@ import time
 import datetime
 
 # Max betsize in simulation environment (shouldn't really matter with discrete relative to pot sizing)
-MAX_BET = 100000
-
 class TrainingEnv():
-    def __init__(self, env, other_players, n_seats, encoding='norm', encoder=None, decoder=None, debug=False):
+    def __init__(self, env, other_players, n_seats, stacks=2500, encoding='norm', encoder=None, decoder=None, visualize=False, debug=False):
         assert len(other_players) == n_seats - 1
         self.env = env
         self.other_players = other_players
         self.n_seats = n_seats
         self._debug = debug
+        self._visualize = visualize
         self._encoder = encoder if not encoder is None else Encoder(n_seats, ranking_encoding=encoding)
         self._decoder = decoder if not decoder is None else Decoder()
-        self._add_players(n_seats)
+        self._add_players(n_seats, stacks)
 
     @staticmethod
-    def build_environment(opponent, n_seats, encoding='norm', equity_steps=100, debug=False):
-        env = gym.make('TexasHoldem-v1', n_seats=n_seats, max_limit=MAX_BET, all_in_equity_reward=True, equity_steps=equity_steps, debug=debug)
+    def build_environment(opponent, n_seats, stacks=2500, encoding='norm', equity_steps=100, encoder=None, decoder=None, visualize=False, debug=False):
+        env = gym.make('TexasHoldem-v1', n_seats=n_seats, all_in_equity_reward=True, equity_steps=equity_steps, debug=debug)
         other_players = [opponent for i in range(n_seats - 1)]
-        return TrainingEnv(env, other_players, n_seats, encoding=encoding, debug=debug)
+        visualize = visualize or debug
+        return TrainingEnv(env, other_players, n_seats, stacks=stacks, encoding=encoding, encoder=encoder, decoder=decoder, visualize=visualize, debug=debug)
 
     @property
     def minimum_raise(self):
@@ -47,8 +47,16 @@ class TrainingEnv():
         return self.env._tocall - self.env._current_player.currentbet
 
     @property
-    def n_observation_dimensions(self):
+    def n_total_dim(self):
         return self._encoder.n_dim
+
+    @property
+    def n_card_dim(self):
+        return self._encoder.n_card_dim
+
+    @property
+    def n_other_dim(self):
+        return self._encoder.n_other_dim
 
     @property
     def n_actions(self):
@@ -95,6 +103,7 @@ class TrainingEnv():
             if self._debug:
                 print('Opponent folded, starting new round...')
             player_states, community_infos, community_cards, reward, done, info = self.reset_returns
+            self.done_on_reset = False
         else:
             move = self._decoder.decode(action, self.n_seats, self.minimum_raise, self.maximum_raise, 
                                         self.pot_size, self.amount_to_call, debug=self._debug)
@@ -106,8 +115,9 @@ class TrainingEnv():
             inner_start = self.time_now
             (player_states, (community_infos, community_cards)), reward, done, info = self.env.step(actions)
             info['inner_duration'] = (self.time_now - inner_start).total_seconds()
-            if self._debug:
+            if self._visualize:
                 self.render()
+            if self._debug:
                 print("Letting others play after step...")
             if not done:
                 player_states, community_infos, community_cards, reward, done, info =\
@@ -171,12 +181,12 @@ class TrainingEnv():
                 info['inner_duration'] = (self.time_now - inner_start).total_seconds()
             player_states, (community_infos, community_cards) = states
 
-            if self._debug:
+            if self._visualize:
                 self.render()
             to_act_pos = community_infos[community_table.TO_ACT_POS]
 
         return player_states, community_infos, community_cards, reward, done, info
 
-    def _add_players(self, n_players):
+    def _add_players(self, n_players, stacks):
         for i in range(n_players):
-            self.env.add_player(i, stack=2000)
+            self.env.add_player(i, stack=stacks)
